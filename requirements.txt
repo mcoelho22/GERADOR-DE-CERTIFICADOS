@@ -1,5 +1,6 @@
 
-streamlit==1.15.0
-Pillow==9.1.0
-pandas==1.4.2
-reportlab==3.6.5
+# Dependências com versões amplas para evitar conflitos no Streamlit Cloud
+streamlit>=1.32
+Pillow>=10.1
+pandas>=2.0
+reportlab>=4.0

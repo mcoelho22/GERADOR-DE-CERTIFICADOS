@@ -1,17 +1,12 @@
 
-# Gerador de Certificados
+# Gerador de Certificados (Streamlit)
 
-Aplicativo web em Streamlit para gerar certificados automaticamente.
+Deploy amigável ao Streamlit Community Cloud. Use `runtime.txt` para Python 3.11 e
+`requirements.txt` com versões amplas para evitar erros de build.
 
-## Como usar:
-1. Faça upload da imagem base (frente e verso).
-2. Faça upload da lista de nomes (.txt ou .csv).
-3. Configure posição, fonte, tamanho e cor do texto.
-4. Escolha o formato de saída (PDF, PNG ou JPEG).
-5. Baixe todos os certificados em um arquivo .zip.
-
-## Tecnologias:
-- Python
-- Streamlit
-- Pillow
-- ReportLab
+## Executar localmente
+```bash
+python -m venv .venv && source .venv/bin/activate  # (Windows: .venv\Scripts\activate)
+pip install -r requirements.txt
+streamlit run app.py
+```
