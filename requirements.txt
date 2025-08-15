@@ -1,5 +1,4 @@
 
-# Dependências com versões amplas para evitar conflitos no Streamlit Cloud
 streamlit>=1.32
 Pillow>=10.1
 pandas>=2.0
