@@ -1,7 +1,5 @@
-streamlit==1.25.0
-streamlit-drawable-canvas==0.9.3
-pillow
-pandas
-reportlab
-cairosvg
-svgwrite
+
+streamlit==1.15.0
+Pillow==9.1.0
+pandas==1.4.2
+reportlab==3.6.5

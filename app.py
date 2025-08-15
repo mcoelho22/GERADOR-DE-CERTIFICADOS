@@ -1,185 +1,110 @@
-# -*- coding: utf-8 -*-
-"""
-Gerador de Certificados — V3 (Streamlit)
-Recursos:
-- Upload frente/verso: PNG/JPG + SVG/EPS/PDF (preview: PNG/JPG direto; SVG via cairosvg; EPS/PDF fallback branco)
-- Previews em 2 colunas
-- Modo de âncora: Manual (X/Y) ou Canvas (clique/arrastar)
-- Ajustes por nome: dx, dy e TAMANHO DE FONTE individual
-- Ajustes globais gdx/gdy e tamanho base
-- Exportação:
-    * Raster: PNG/JPEG (qualidade: baixa/média/alta)
-    * Vetores: PDF (texto vetorial), SVG (texto vetorial), EPS (texto vetorial)
-- Tema: claro, escuro e automático (CSS)
-- Rodapé com frase do Coelho
-"""
 
 import streamlit as st
-from utils import (
-    carregar_base_preview, ler_nomes, desenhar_preview_nome,
-    exportar_zip,
-    canvas_disponivel
-)
+from PIL import Image, ImageDraw, ImageFont
+import pandas as pd
+import zipfile
+import os
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
-# ================= TEMA ==================
-tema = st.sidebar.radio("🎨 Tema", ["Automático", "Claro", "Escuro"], index=0, horizontal=True)
+# Função para gerar certificados em PNG/JPEG/PDF
+def gerar_certificados(imagem_frente, imagem_verso, lista_nomes, fonte, tamanho_fonte, cor_texto, formato_saida):
+    certificados = []
+    
+    for nome in lista_nomes:
+        # Criar imagem do certificado
+        imagem = imagem_frente.copy()  # Copiar a imagem da frente
+        
+        # Adicionar nome na posição configurada
+        draw = ImageDraw.Draw(imagem)
+        font = ImageFont.truetype(fonte, tamanho_fonte)
+        largura_texto, altura_texto = draw.textsize(nome, font)
+        posicao = ((imagem.width - largura_texto) // 2, 400)  # Exemplo de posição (ajuste conforme necessário)
+        draw.text(posicao, nome, font=font, fill=cor_texto)
+        
+        # Gerar verso, se necessário
+        if imagem_verso:
+            imagem_verso_copia = imagem_verso.copy()
+            # Adicionar o nome ou outras informações na parte de verso, se desejar.
+            certificados.append(imagem_verso_copia)
+        
+        # Salvar a imagem gerada em um arquivo temporário para exportação
+        if formato_saida == "PNG":
+            img_byte_array = BytesIO()
+            imagem.save(img_byte_array, format="PNG")
+            img_byte_array.seek(0)
+            certificados.append(img_byte_array)
+        elif formato_saida == "JPEG":
+            img_byte_array = BytesIO()
+            imagem.save(img_byte_array, format="JPEG")
+            img_byte_array.seek(0)
+            certificados.append(img_byte_array)
+        elif formato_saida == "PDF":
+            buffer = BytesIO()
+            c = canvas.Canvas(buffer, pagesize=letter)
+            c.drawImage(imagem, 0, 0, width=imagem.width, height=imagem.height)
+            c.save()
+            buffer.seek(0)
+            certificados.append(buffer)
 
-def _inject_theme(selected):
-    if selected == "Automático":
-        st.markdown("""
-        <style>
-        @media (prefers-color-scheme: dark) {
-            :root { color-scheme: dark; }
-            .stApp { background: #0e1117; color: #fafafa; }
-        }
-        </style>""", unsafe_allow_html=True)
-    elif selected == "Escuro":
-        st.markdown("""
-        <style>
-        :root { color-scheme: dark; }
-        .stApp { background: #0e1117; color: #fafafa; }
-        </style>""", unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <style>
-        :root { color-scheme: light; }
-        .stApp { background: #ffffff; color: #111111; }
-        </style>""", unsafe_allow_html=True)
+    return certificados
 
-_inject_theme(tema)
+# Função para compactar os arquivos gerados em um .zip
+def zip_certificados(certificados, formato_saida):
+    with zipfile.ZipFile(f"certificados_gerados.{formato_saida.lower()}.zip", "w") as zipf:
+        for i, cert in enumerate(certificados):
+            nome_arquivo = f"certificado_{i + 1}.{formato_saida.lower()}"
+            zipf.writestr(nome_arquivo, cert.read())
+    
+    return f"certificados_gerados.{formato_saida.lower()}.zip"
 
-# ================= UPLOADS ==================
-st.title("🏆 Gerador de Certificados")
+# Interface com Streamlit
+def app():
+    st.title("Gerador de Certificados")
+    
+    # Upload das imagens de frente e verso
+    imagem_frente = st.file_uploader("Upload da Imagem da Frente do Certificado", type=["png", "jpeg", "jpg"])
+    imagem_verso = st.file_uploader("Upload da Imagem do Verso do Certificado (Opcional)", type=["png", "jpeg", "jpg"])
+    
+    if imagem_frente is not None:
+        imagem_frente = Image.open(imagem_frente)
+        
+        if imagem_verso is not None:
+            imagem_verso = Image.open(imagem_verso)
+        
+        # Upload do arquivo de nomes
+        arquivo_nomes = st.file_uploader("Upload do Arquivo de Nomes (.txt ou .csv)", type=["txt", "csv"])
+        
+        if arquivo_nomes is not None:
+            if arquivo_nomes.name.endswith("txt"):
+                lista_nomes = [line.strip() for line in arquivo_nomes.readlines()]
+            elif arquivo_nomes.name.endswith("csv"):
+                df = pd.read_csv(arquivo_nomes)
+                lista_nomes = df.iloc[:, 0].tolist()  # Supondo que a coluna de nomes seja a primeira
+            
+            # Configuração do texto
+            fonte = st.text_input("Fonte do Texto", "arial.ttf")
+            tamanho_fonte = st.slider("Tamanho da Fonte", 10, 50, 18)
+            cor_texto = st.color_picker("Cor do Texto", "#FFFFFF")
+            formato_saida = st.selectbox("Formato de Saída", ["PDF", "PNG", "JPEG"])
+            
+            # Geração dos certificados
+            if st.button("Gerar Certificados"):
+                certificados = gerar_certificados(imagem_frente, imagem_verso, lista_nomes, fonte, tamanho_fonte, cor_texto, formato_saida)
+                
+                # Compactar os certificados em um arquivo .zip
+                arquivo_zip = zip_certificados(certificados, formato_saida)
+                
+                # Oferecer o download do arquivo .zip
+                with open(arquivo_zip, "rb") as f:
+                    st.download_button(
+                        label="Baixar Certificados",
+                        data=f,
+                        file_name=arquivo_zip,
+                        mime=f"application/zip"
+                    )
 
-st.header("📑 Certificados")
-col1, col2, col3 = st.columns([1, 1, 2])
-with col1:
-    frente_file = st.file_uploader("📄 Frente", type=["png", "jpg", "jpeg", "svg", "eps", "pdf"])
-with col2:
-    verso_file = st.file_uploader("🪙 Verso (opcional)", type=["png", "jpg", "jpeg", "svg", "eps", "pdf"])
-with col3:
-    nomes_file = st.file_uploader("📜 Lista de nomes (.txt ou .csv)", type=["txt", "csv"])
-
-# ================= AJUSTES GLOBAIS ==================
-st.sidebar.header("⚙️ Ajustes Globais")
-gdx = st.sidebar.slider("Deslocamento X global (gdx)", -1500, 1500, 0)
-gdy = st.sidebar.slider("Deslocamento Y global (gdy)", -1500, 1500, 0)
-tamanho_global = st.sidebar.slider("Tamanho base da fonte", 10, 300, 64)
-cor_texto = st.sidebar.color_picker("Cor do texto", "#FFB900")
-
-st.sidebar.header("📐 Qualidade (PNG/JPEG)")
-qualidades = {
-    "Baixa": (1280, 72, 50),
-    "Média": (1920, 150, 85),
-    "Alta": (3840, 300, 95),
-}
-qualidade_nome = st.sidebar.selectbox("Qualidade", list(qualidades.keys()), index=1)
-px_largura, dpi_export, jpg_q = qualidades[qualidade_nome]
-
-st.sidebar.header("💾 Exportação")
-formato_saida = st.sidebar.selectbox(
-    "Formato",
-    ["PNG", "JPEG", "PDF (vetor)", "SVG (vetor)", "EPS (vetor)"],
-    index=2
-)
-padrao_nome = st.sidebar.text_input("Padrão do nome do arquivo", "{name}")
-
-# ================= PREVIEW ==================
-if frente_file and nomes_file:
-    base_img, base_meta = carregar_base_preview(frente_file)
-    nomes = ler_nomes(nomes_file)
-
-    # Seletor de modo âncora
-    st.markdown("### 📍 Modo de âncora")
-    modos = ["Manual (X/Y)"]
-    if canvas_disponivel():
-        modos.append("Canvas (clique)")
-    modo = st.radio("Escolha como definir a âncora", modos, horizontal=True)
-
-    if base_img is not None:
-        W, H = base_img.size
-    else:
-        W, H = 1600, 1000
-
-    if modo.startswith("Canvas"):
-        st.caption("Clique no canvas para definir a âncora global (centro do nome).")
-        try:
-            from streamlit_drawable_canvas import st_canvas
-            canvas = st_canvas(
-                fill_color="rgba(0,0,0,0)",
-                stroke_width=0,
-                background_image=base_img if base_img is not None else None,
-                update_streamlit=True,
-                height=min(H, 700),
-                width=min(W, 1000),
-                drawing_mode="point",
-                key="canvas_global_v3",
-            )
-            if canvas.json_data is not None and len(canvas.json_data.get("objects", [])) > 0:
-                last = canvas.json_data["objects"][-1]
-                if canvas.image_data is not None:
-                    scale_x = W / canvas.image_data.shape[1]
-                    scale_y = H / canvas.image_data.shape[0]
-                    x_anchor = int(last["left"] * scale_x)
-                    y_anchor = int(last["top"] * scale_y)
-                else:
-                    x_anchor, y_anchor = W//2, H//2
-            else:
-                x_anchor, y_anchor = W//2, H//2
-        except Exception as e:
-            st.warning(f"Canvas indisponível ({e}). Use o modo Manual.")
-            x_anchor, y_anchor = W//2, H//2
-    else:
-        # Manual
-        if base_img is not None:
-            st.image(base_img, use_container_width=True)
-        else:
-            st.info("Pré-visualização não disponível para este formato. Use os valores numéricos abaixo.")
-        x_anchor = st.number_input("Âncora X", 0, W, W//2)
-        y_anchor = st.number_input("Âncora Y", 0, H, H//2)
-
-    # Estado por-nome
-    if "ajustes" not in st.session_state:
-        st.session_state.ajustes = {}
-    for n in nomes:
-        if n not in st.session_state.ajustes:
-            st.session_state.ajustes[n] = {"dx": 0, "dy": 0, "tamanho": int(tamanho_global)}
-
-    # Previews em 2 colunas
-    st.markdown("### 🔍 Previews individuais (2 por linha)")
-    cols = st.columns(2)
-    previews = []
-    for idx, n in enumerate(nomes):
-        a = st.session_state.ajustes[n]
-        with cols[idx % 2]:
-            st.markdown(f"**{n}**")
-            # Sliders individuais
-            a["dx"] = st.slider(f"dx — {n}", -1500, 1500, a["dx"], key=f"dx_{idx}")
-            a["dy"] = st.slider(f"dy — {n}", -1500, 1500, a["dy"], key=f"dy_{idx}")
-            a["tamanho"] = st.slider(f"Tamanho fonte — {n}", 10, 300, a["tamanho"], key=f"fs_{idx}")
-            # Render preview real quando possível
-            img_bytes = desenhar_preview_nome(
-                base_img, (W, H), n, x_anchor, y_anchor, gdx, gdy, a["dx"], a["dy"], a["tamanho"], cor_texto
-            )
-            st.image(img_bytes, use_container_width=True)
-            previews.append((n, img_bytes))
-
-    # ============== EXPORTAR ==============
-    st.markdown("---")
-    if st.button("📦 Exportar (ZIP)"):
-        zip_bytes = exportar_zip(
-            frente_file, verso_file, nomes, st.session_state.ajustes,
-            base_meta, (W, H), x_anchor, y_anchor, gdx, gdy, cor_texto,
-            formato_saida, px_largura, dpi_export, jpg_q, padrao_nome
-        )
-        st.download_button("⬇️ Baixar ZIP", data=zip_bytes, file_name="certificados.zip", mime="application/zip")
-
-# Rodapé com a frase pedida
-st.markdown(
-    """
-    <div style='text-align:center; margin-top:40px; font-style:italic;'>
-    "Toda grande invenção é, em essência, a resposta engenhosa a um problema de magnitude equivalente, nascendo da urgência e da complexidade que instigam o intelecto humano a transcender seus próprios limites. by: Coelho"
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# Executar o app
+if __name__ == "__main__":
+    app()
