@@ -1,6 +1,6 @@
 
 # -*- coding: utf-8 -*-
-# Gerador de Certificados - PDF frente+verso no mesmo arquivo + export fix + sliders/numéricos
+# Gerador de Certificados - PDF no tamanho ORIGINAL do certificado (sem A4)
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
@@ -8,7 +8,6 @@ import pandas as pd
 from io import BytesIO
 import zipfile
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 
 st.set_page_config(page_title="Gerador de Certificados", page_icon="🎓", layout="wide")
@@ -31,27 +30,23 @@ def draw_name_on_image(img: Image.Image, name: str, x: int, y: int, font, color,
     draw.text((x, y), name, fill=color, font=font, anchor=anchor)
     return im
 
-def fit_on_a4(img: Image.Image):
-    w, h = A4
-    img_w, img_h = img.size
-    ratio = min(w / img_w, h / img_h)
-    return (img_w * ratio, img_h * ratio, ratio)
-
-def pil_to_pdf_page(img: Image.Image, canv):
-    '''Desenha uma imagem PIL centralizada e proporcional em uma página A4 do canvas informado.'''
-    w, h = A4
-    new_w, new_h, _ = fit_on_a4(img)
-    x = (w - new_w) / 2
-    y = (h - new_h) / 2
-    canv.drawImage(ImageReader(img), x, y, width=new_w, height=new_h)
-    canv.showPage()
-
-def pil_list_to_pdf(images):
-    '''Recebe uma lista de imagens PIL e gera um PDF multipágina A4 (bytes).'''
+def pil_list_to_pdf_original(images):
+    '''Gera PDF multipágina usando o TAMANHO ORIGINAL de cada imagem.'''
+    if not images:
+        return b""
     buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
+    # Canvas inicial com o tamanho da primeira imagem
+    first = images[0].convert("RGB")
+    w0, h0 = first.size  # pixels tratados como points (sem margens)
+    c = canvas.Canvas(buf, pagesize=(w0, h0))
+    def draw_page(img):
+        im = img.convert("RGB")
+        w, h = im.size
+        c.setPageSize((w, h))
+        c.drawImage(ImageReader(im), 0, 0, width=w, height=h)
+        c.showPage()
     for im in images:
-        pil_to_pdf_page(im, c)
+        draw_page(im)
     c.save()
     buf.seek(0)
     return buf.read()
@@ -247,11 +242,11 @@ if gen:
                 b2 = BytesIO(); back_img.save(b2, "JPEG", quality=95, subsampling=0); b2.seek(0)
                 files.append((f"{fname_base}_verso.jpg", b2.read()))
         else:
-            # PDF: frente + verso juntos no mesmo arquivo
+            # PDF: frente + verso no MESMO arquivo, no tamanho ORIGINAL das imagens
             pages = [out_img]
             if back_img is not None:
                 pages.append(back_img)
-            pdf_bytes = pil_list_to_pdf(pages)
+            pdf_bytes = pil_list_to_pdf_original(pages)
             files.append((f"{fname_base}.pdf", pdf_bytes))
 
     z = zip_bytes(files)
