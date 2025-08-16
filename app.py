@@ -1,6 +1,6 @@
 
 # -*- coding: utf-8 -*-
-# Gerador de Certificados - Layout fiel + previews dinâmicos por nome
+# Gerador de Certificados - Previews dinâmicos + sliders e compatibilidade Streamlit
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
@@ -101,18 +101,18 @@ with st.sidebar:
         st.markdown("**Posição & Escala**")
         col_ps1, col_ps2 = st.columns(2)
         with col_ps1:
-            g_x = st.number_input("Posição X", value=1000, step=5)
+            g_x = st.slider("Posição X", min_value=0, max_value=5000, value=1000, step=1)
             g_align = st.radio("Alinhamento", ["Esquerda","Centro","Direita"], horizontal=True)
         with col_ps2:
-            g_y = st.number_input("Posição Y", value=600, step=5)
-            g_scale = st.slider("Escala da fonte", 0.5, 3.0, 1.0, 0.05)
+            g_y = st.slider("Posição Y", min_value=0, max_value=3000, value=600, step=1)
+            g_scale = st.slider("Escala da fonte", 0.5, 3.0, 1.0, 0.01)
 
     st.markdown("\n")
     with st.container(border=True):
         st.markdown("**Caracteres / Estilo da Fonte**")
         font_upload = st.file_uploader("Fonte (TTF) — padrão: Bentosa", type=["ttf"], key="font_up")
         base_font_size = st.number_input("Tamanho base (pt)", value=48, step=1)
-        font_color = st.color_picker("Cor", "#000000")  # PRETO como padrão
+        font_color = st.color_picker("Cor", "#000000")  # PRETO padrão
 
     st.markdown("\n")
     st.markdown("## Exportar Arquivos")
@@ -148,7 +148,6 @@ if not names:
 
 # Inicializa estados por nome
 for idx, nm in enumerate(names):
-    # chaves estáveis por índice
     if f"dx_{idx}" not in st.session_state: st.session_state[f"dx_{idx}"] = 0
     if f"dy_{idx}" not in st.session_state: st.session_state[f"dy_{idx}"] = 0
     if f"size_{idx}" not in st.session_state: st.session_state[f"size_{idx}"] = base_font_size
@@ -157,11 +156,11 @@ def render_preview(idx, nm, front_bytes):
     st.markdown("<div class='preview-card'>", unsafe_allow_html=True)
     cA,cB,cC = st.columns(3)
     with cA:
-        st.session_state[f"dx_{idx}"] = st.number_input("dx", value=st.session_state[f"dx_{idx}"], step=1, key=f"ctrl_dx_{idx}")
+        st.session_state[f"dx_{idx}"] = st.slider("dx", min_value=-2000, max_value=2000, value=st.session_state[f"dx_{idx}"], step=1, key=f"ctrl_dx_{idx}")
     with cB:
-        st.session_state[f"dy_{idx}"] = st.number_input("dy", value=st.session_state[f"dy_{idx}"], step=1, key=f"ctrl_dy_{idx}")
+        st.session_state[f"dy_{idx}"] = st.slider("dy", min_value=-2000, max_value=2000, value=st.session_state[f"dy_{idx}"], step=1, key=f"ctrl_dy_{idx}")
     with cC:
-        st.session_state[f"size_{idx}"] = st.number_input("tamanho", value=st.session_state[f"size_{idx}"], step=1, key=f"ctrl_size_{idx}")
+        st.session_state[f"size_{idx}"] = st.slider("tamanho", min_value=6, max_value=300, value=st.session_state[f"size_{idx}"], step=1, key=f"ctrl_size_{idx}")
 
     if front_bytes is not None:
         base = Image.open(front_bytes).convert("RGB")
@@ -173,7 +172,7 @@ def render_preview(idx, nm, front_bytes):
         base, nm, int(g_x + st.session_state[f"dx_{idx}"]), int(g_y + st.session_state[f"dy_{idx}"]),
         font, font_color, g_align
     )
-    st.image(out, use_column_width=True, caption=nm)
+    st.image(out, use_container_width=True, caption=nm)  # atualizado para use_container_width
     st.markdown("</div>", unsafe_allow_html=True)
 
 # Grid em colunas de 3 para exibir todos os previews
