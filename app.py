@@ -1,6 +1,6 @@
 
 # -*- coding: utf-8 -*-
-# Gerador de Certificados - export fix + sliders e campos numéricos X/Y globais e individuais
+# Gerador de Certificados - PDF frente+verso no mesmo arquivo + export fix + sliders/numéricos
 
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
@@ -37,22 +37,27 @@ def fit_on_a4(img: Image.Image):
     ratio = min(w / img_w, h / img_h)
     return (img_w * ratio, img_h * ratio, ratio)
 
-def pil_to_pdf_page(img: Image.Image) -> bytes:
-    buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
+def pil_to_pdf_page(img: Image.Image, canv):
+    \"\"\"Desenha uma imagem PIL centralizada e proporcional em uma página A4 do canvas informado.\"\"\"
     w, h = A4
     new_w, new_h, _ = fit_on_a4(img)
     x = (w - new_w) / 2
     y = (h - new_h) / 2
-    c.drawImage(ImageReader(img), x, y, width=new_w, height=new_h)
-    c.showPage()
+    canv.drawImage(ImageReader(img), x, y, width=new_w, height=new_h)
+    canv.showPage()
+
+def pil_list_to_pdf(images):
+    \"\"\"Recebe uma lista de imagens PIL e gera um PDF multipágina A4 (bytes).\"\"\"
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    for im in images:
+        pil_to_pdf_page(im, c)
     c.save()
     buf.seek(0)
     return buf.read()
 
 def read_names(file):
     if file is None: return []
-    # Rewind if already read
     try:
         file.seek(0)
     except Exception:
@@ -100,30 +105,27 @@ with st.sidebar:
     st.markdown("## Ajustes Globais")
     with st.container(border=True):
         st.markdown("**Posição & Escala**")
-        # Sliders principais
         g_x_slider = st.slider("Posição X (slider)", min_value=0, max_value=5000, value=1000, step=1)
         g_y_slider = st.slider("Posição Y (slider)", min_value=0, max_value=3000, value=600, step=1)
-        # Campos numéricos sincronizados
         col_xy = st.columns(2)
         with col_xy[0]:
             g_x_num = st.number_input("Posição X (numérico)", value=g_x_slider, step=1)
         with col_xy[1]:
             g_y_num = st.number_input("Posição Y (numérico)", value=g_y_slider, step=1)
-        # Valor efetivo = numérico (prioridade), mas mantendo slider visível
         g_x = int(g_x_num)
         g_y = int(g_y_num)
 
         g_align = st.radio("Alinhamento", ["Esquerda","Centro","Direita"], horizontal=True)
         g_scale = st.slider("Escala da fonte", 0.5, 3.0, 1.0, 0.01)
 
-    st.markdown("\n")
+    st.markdown("\\n")
     with st.container(border=True):
         st.markdown("**Caracteres / Estilo da Fonte**")
         font_upload = st.file_uploader("Fonte (TTF) — padrão: Bentosa", type=["ttf"], key="font_up")
         base_font_size = st.number_input("Tamanho base (pt)", value=48, step=1)
         font_color = st.color_picker("Cor", "#000000")  # PRETO padrão
 
-    st.markdown("\n")
+    st.markdown("\\n")
     st.markdown("## Exportar Arquivos")
     with st.container(border=True):
         out_fmt = st.selectbox("Formato de saída:", ["PDF (individual)", "PNG (individual)", "JPEG (individual)"])
@@ -164,7 +166,6 @@ for idx, nm in enumerate(names):
 
 def render_preview(idx, nm, front_bytes):
     st.markdown("<div class='preview-card'>", unsafe_allow_html=True)
-    # Sliders
     cA,cB,cC = st.columns(3)
     with cA:
         st.session_state[f"dx_{idx}"] = st.slider("dx (slider)", min_value=-2000, max_value=2000, value=st.session_state[f"dx_{idx}"], step=1, key=f"ctrl_dx_{idx}")
@@ -172,7 +173,6 @@ def render_preview(idx, nm, front_bytes):
         st.session_state[f"dy_{idx}"] = st.slider("dy (slider)", min_value=-2000, max_value=2000, value=st.session_state[f"dy_{idx}"], step=1, key=f"ctrl_dy_{idx}")
     with cC:
         st.session_state[f"size_{idx}"] = st.slider("tamanho (slider)", min_value=6, max_value=300, value=st.session_state[f"size_{idx}"], step=1, key=f"ctrl_size_{idx}")
-    # Campos numéricos sincronizados
     cn1, cn2, cn3 = st.columns(3)
     with cn1:
         st.session_state[f"dx_{idx}"] = st.number_input("dx (numérico)", value=st.session_state[f"dx_{idx}"], step=1, key=f"num_dx_{idx}")
@@ -182,6 +182,8 @@ def render_preview(idx, nm, front_bytes):
         st.session_state[f"size_{idx}"] = st.number_input("tamanho (numérico)", value=st.session_state[f"size_{idx}"], step=1, key=f"num_size_{idx}")
 
     if front_bytes is not None:
+        try: front_bytes.seek(0)
+        except Exception: pass
         base = Image.open(front_bytes).convert("RGB")
     else:
         base = Image.new("RGB", (1280, 720), "#111111")
@@ -209,7 +211,6 @@ gen = st.button("Gerar e baixar .zip", type="primary", use_container_width=True,
 
 if gen:
     fmt = out_fmt.split(" ")[0]  # PDF/PNG/JPEG
-    # Rewind images just in case
     try: up_front.seek(0)
     except Exception: pass
     front_img = Image.open(up_front).convert("RGB")
@@ -246,16 +247,19 @@ if gen:
                 b2 = BytesIO(); back_img.save(b2, "JPEG", quality=95, subsampling=0); b2.seek(0)
                 files.append((f"{fname_base}_verso.jpg", b2.read()))
         else:
-            files.append((f"{fname_base}.pdf", pil_to_pdf_page(out_img)))
+            # PDF: frente + verso juntos no mesmo arquivo
+            pages = [out_img]
             if back_img is not None:
-                files.append((f"{fname_base}_verso.pdf", pil_to_pdf_page(back_img)))
+                pages.append(back_img)
+            pdf_bytes = pil_list_to_pdf(pages)
+            files.append((f"{fname_base}.pdf", pdf_bytes))
 
     z = zip_bytes(files)
     st.download_button("📦 Baixar ZIP", data=z, file_name="certificados.zip", mime="application/zip", use_container_width=True)
 
 st.markdown("<br><br>", unsafe_allow_html=True)
-st.markdown("""<div class='center-h'><div style='max-width:900px;text-align:center' class='caption'>
+st.markdown(\"\"\"<div class='center-h'><div style='max-width:900px;text-align:center' class='caption'>
 <b>Toda grande invenção é, em essência, a resposta engenhosa a um problema de magnitude equivalente, nascendo da urgência e da complexidade que instigam o intelecto humano a transcender seus próprios limites.</b><br/>
 by: Coelho<br/><br/>
 <b>Deus seja louvado.</b>
-</div></div>""", unsafe_allow_html=True)
+</div></div>\"\"\", unsafe_allow_html=True)
