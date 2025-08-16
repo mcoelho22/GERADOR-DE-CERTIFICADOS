@@ -38,7 +38,7 @@ def fit_on_a4(img: Image.Image):
     return (img_w * ratio, img_h * ratio, ratio)
 
 def pil_to_pdf_page(img: Image.Image, canv):
-    \"\"\"Desenha uma imagem PIL centralizada e proporcional em uma página A4 do canvas informado.\"\"\"
+    '''Desenha uma imagem PIL centralizada e proporcional em uma página A4 do canvas informado.'''
     w, h = A4
     new_w, new_h, _ = fit_on_a4(img)
     x = (w - new_w) / 2
@@ -47,7 +47,7 @@ def pil_to_pdf_page(img: Image.Image, canv):
     canv.showPage()
 
 def pil_list_to_pdf(images):
-    \"\"\"Recebe uma lista de imagens PIL e gera um PDF multipágina A4 (bytes).\"\"\"
+    '''Recebe uma lista de imagens PIL e gera um PDF multipágina A4 (bytes).'''
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     for im in images:
@@ -118,14 +118,14 @@ with st.sidebar:
         g_align = st.radio("Alinhamento", ["Esquerda","Centro","Direita"], horizontal=True)
         g_scale = st.slider("Escala da fonte", 0.5, 3.0, 1.0, 0.01)
 
-    st.markdown("\\n")
+    st.markdown("\n")
     with st.container(border=True):
         st.markdown("**Caracteres / Estilo da Fonte**")
         font_upload = st.file_uploader("Fonte (TTF) — padrão: Bentosa", type=["ttf"], key="font_up")
         base_font_size = st.number_input("Tamanho base (pt)", value=48, step=1)
         font_color = st.color_picker("Cor", "#000000")  # PRETO padrão
 
-    st.markdown("\\n")
+    st.markdown("\n")
     st.markdown("## Exportar Arquivos")
     with st.container(border=True):
         out_fmt = st.selectbox("Formato de saída:", ["PDF (individual)", "PNG (individual)", "JPEG (individual)"])
@@ -258,8 +258,8 @@ if gen:
     st.download_button("📦 Baixar ZIP", data=z, file_name="certificados.zip", mime="application/zip", use_container_width=True)
 
 st.markdown("<br><br>", unsafe_allow_html=True)
-st.markdown(\"\"\"<div class='center-h'><div style='max-width:900px;text-align:center' class='caption'>
+st.markdown("""<div class='center-h'><div style='max-width:900px;text-align:center' class='caption'>
 <b>Toda grande invenção é, em essência, a resposta engenhosa a um problema de magnitude equivalente, nascendo da urgência e da complexidade que instigam o intelecto humano a transcender seus próprios limites.</b><br/>
 by: Coelho<br/><br/>
 <b>Deus seja louvado.</b>
-</div></div>\"\"\", unsafe_allow_html=True)
+</div></div>""", unsafe_allow_html=True)
